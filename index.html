@@ -8,12 +8,13 @@
 <meta name="apple-mobile-web-app-title" content="Story Time">
 <meta name="theme-color" content="#0d0025">
 <title>✨ Story Time</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bubblegum+Sans&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+@font-face{font-family:'Bubblegum Sans';src:local('Bubblegum Sans'),local('Comic Sans MS'),local('Chalkboard SE');font-display:swap}
+</style>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
-body{min-height:100vh;background:radial-gradient(ellipse at 30% 20%,#1a0040 0%,#0d0025 50%,#000518 100%);font-family:'Nunito',sans-serif;display:flex;align-items:center;justify-content:center}
+body{min-height:100vh;background:radial-gradient(ellipse at 30% 20%,#1a0040 0%,#0d0025 50%,#000518 100%);font-family:-apple-system,'Nunito',system-ui,sans-serif;display:flex;align-items:center;justify-content:center}
 #stars-bg{position:fixed;inset:0;pointer-events:none;z-index:0}
 .star{position:absolute;border-radius:50%;background:#fff}
 @keyframes twinkle{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:.9;transform:scale(1.3)}}
@@ -199,6 +200,8 @@ const getDayIdx=()=>{const d=new Date().getDay();return d===0?6:d-1;};
 const getWeek=()=>{const n=new Date(),s=new Date(2026,0,1),diff=Math.floor((n-s)/86400000),w=Math.floor(diff/7)%5;return w+1;};
 
 let S={week:getWeek(),dayIdx:getDayIdx(),phase:'cover',speaking:false,curPara:0,fromPara:0,storyDone:false,quizIdx:0,chosen:null,score:0,curEmo:{icon:'📖',label:'Story Time'}};
+// If no story for current week+day, default to week 1
+if(!STORIES.find(s=>s.week===S.week&&s.day===S.dayIdx)){S.week=1;}
 let shouldStop=false;
 const synth=window.speechSynthesis;
 
@@ -213,8 +216,14 @@ function applyNames(){
   const n1=document.getElementById('inp-name1').value.trim();
   const n2=document.getElementById('inp-name2').value.trim();
   const key=document.getElementById('inp-elkey').value.trim();
-  if(n1)NAME1=n1;if(n2)NAME2=n2;EL_KEY=key;
-  saveNames();localStorage.setItem('st_el_key',EL_KEY);closeNames();render();
+  if(n1)NAME1=n1;if(n2)NAME2=n2;
+  saveNames();
+  if(!key){EL_KEY='';localStorage.setItem('st_el_key','');closeNames();render();return;}
+  // Validate key with a tiny test request
+  fetch('https://api.elevenlabs.io/v1/user',{headers:{'xi-api-key':key}})
+    .then(r=>{if(!r.ok)throw new Error();return r.json();})
+    .then(()=>{EL_KEY=key;localStorage.setItem('st_el_key',EL_KEY);closeNames();render();})
+    .catch(()=>{document.getElementById('inp-elkey').value='';document.getElementById('inp-elkey').style.borderColor='#FF5757';alert('Invalid API key. Leave blank to use device voice.');});
 }
 
 const story=()=>STORIES.find(s=>s.week===S.week&&s.day===S.dayIdx);
@@ -347,7 +356,11 @@ function renderDayRow(){
 }
 
 function renderCover(){
-  const st=story();if(!st)return'<div class="cover"><div class="c-emoji">📚</div><div class="c-title">Coming Soon!</div><div class="c-sub">This story is not ready yet</div></div>';
+  const st=story();if(!st){
+    const allStories=STORIES.filter(s=>s.week===S.week);
+    const picks=allStories.length?allStories:STORIES.slice(0,3);
+    return`<div class="cover"><div class="c-emoji" style="font-size:60px">🌙</div><div class="c-title" style="color:#845EF7">Good ${new Date().getHours()<12?'Morning':'Evening'}, Storyteller!</div><div class="c-sub">Pick a day above to start your adventure</div><div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">${picks.map(p=>`<button onclick="S.week=${p.week};S.dayIdx=${p.day};S.phase='cover';render()" style="padding:10px 14px;border-radius:14px;border:2px solid ${p.color}44;background:${p.color}10;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px"><span style="font-size:24px">${p.emoji}</span><span style="font-family:'Bubblegum Sans',cursive;font-size:14px;color:${p.dark}">${p.title}</span></button>`).join('')}</div></div>`;
+  }
   const todayDay=getDayIdx(),todayWeek=getWeek();const isToday=S.dayIdx===todayDay&&S.week===todayWeek;
   const tip=!localStorage.getItem('st_tip_dismissed')?`<div style="margin-top:14px;padding:10px 14px;border-radius:14px;background:rgba(0,0,0,.04);border:1.5px solid rgba(0,0,0,.08);text-align:left;position:relative"><button onclick="localStorage.setItem('st_tip_dismissed','1');render()" style="position:absolute;top:6px;right:10px;background:none;border:none;font-size:14px;cursor:pointer;color:#aaa">✕</button><p style="font-size:11px;color:#888;line-height:1.5;margin:0"><b>📱 iPhone Tip:</b> Tap <b>Share</b> (□↑) → <b>Add to Home Screen</b> to install as an app. Works offline!</p></div>`:'';
   return`<div class="cover"><div class="c-emoji">${st.emoji}</div><div class="c-title" style="color:${st.dark}">${sub(st.title)}</div><div class="c-sub">${sub(st.sub)}</div><div class="moral-box" style="background:${st.color}15;border-color:${st.color}88"><span>💡</span><p style="color:${st.dark}">${sub(st.moral)}</p></div><div class="day-badge" style="background:${DAY_COLORS[S.dayIdx%7]}22;border-color:${DAY_COLORS[S.dayIdx%7]}55;color:${DAY_COLORS[S.dayIdx%7]}">📅 ${DAY_NAMES[S.dayIdx%7]} · Week ${S.week}${isToday?' · Today! 🌟':''}</div><button class="read-btn" style="background:${st.color};box-shadow:0 6px 24px ${st.color}66" onclick="gotoStory()">🎙️ Read to Me!</button>${tip}</div>`;
@@ -384,21 +397,26 @@ function handleRestart(){stopSpeaking();S.curPara=0;S.fromPara=0;S.storyDone=fal
 function handleAnswer(optIdx){if(S.chosen!==null)return;const st=story();S.chosen=optIdx;if(optIdx===st.questions[S.quizIdx].ans)S.score++;render();setTimeout(()=>{if(S.quizIdx<2){S.quizIdx++;S.chosen=null;render();}else{showConfetti();S.phase='complete';render();}},1600);}
 if(synth.onvoiceschanged!==undefined){synth.onvoiceschanged=()=>{};}
 
-// ── iOS: Keep audio alive when screen is off ──
+// ── iOS: Keep audio alive when screen is off / Bluetooth switches ──
 let audioCtx=null;
 function ensureAudioCtx(){
-  if(audioCtx)return;
-  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  // Silent oscillator keeps the audio session active on iOS
-  const osc=audioCtx.createOscillator();
-  const gain=audioCtx.createGain();
-  gain.gain.value=0.001; // inaudible
-  osc.connect(gain);gain.connect(audioCtx.destination);
-  osc.start();
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  // Silent oscillator keeps audio session active
+  if(!audioCtx._osc){const osc=audioCtx.createOscillator();const gain=audioCtx.createGain();gain.gain.value=0.001;osc.connect(gain);gain.connect(audioCtx.destination);osc.start();audioCtx._osc=true;}
 }
-// Activate on first user interaction (required by iOS)
 document.addEventListener('click',ensureAudioCtx,{once:true});
 document.addEventListener('touchstart',ensureAudioCtx,{once:true});
+
+// Auto-resume when Bluetooth connects/disconnects (audio route change)
+setInterval(()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();},1000);
+// Resume audio if it was interrupted (e.g. Bluetooth switch)
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden){
+    if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();
+    if(currentAudio&&currentAudio.paused&&S.speaking)currentAudio.play();
+  }
+});
 
 render();
 </script>
