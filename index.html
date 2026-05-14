@@ -260,7 +260,10 @@ function testVoice(){
     })
     .catch(function(e){
       EL_KEY='';localStorage.setItem('st_el_key','');
-      status.textContent='❌ '+e.message+'. Key cleared.';status.style.color='#FF5757';
+      status.textContent='❌ '+e.message+'. Using device voice instead.';status.style.color='#FF922B';
+      // Play device voice so user hears it works
+      var u=new SpeechSynthesisUtterance('Once upon a time, in a land far away, there lived two best friends.');
+      u.rate=0.8;u.pitch=1.05;u.lang='en-US';synth.speak(u);
     });
 }
 
@@ -382,13 +385,33 @@ function speakFrom(startIdx){
 
 function fallbackSpeak(item,onDone){
   try{
-    var u=new SpeechSynthesisUtterance(item.text);
-    u.rate=0.75;u.pitch=1.0;u.volume=1.0;
+    // iOS needs voices loaded - they load async
     var vv=synth.getVoices()||[];
-    var v=vv.find(function(v){return v.name==='Google UK English Male';})||vv.find(function(v){return v.name.indexOf('Daniel')>=0&&v.lang.indexOf('en')===0;})||vv.find(function(v){return v.lang==='en-GB';})||vv.find(function(v){return v.lang.indexOf('en')===0;});
-    if(v)u.voice=v;
-    u.onend=onDone;u.onerror=function(){onDone();};
-    synth.speak(u);
+    if(vv.length===0){
+      // Voices not loaded yet on iOS - wait and retry once
+      setTimeout(function(){
+        vv=synth.getVoices()||[];
+        doSpeak(vv);
+      },200);
+    } else {
+      doSpeak(vv);
+    }
+    function doSpeak(voices){
+      var u=new SpeechSynthesisUtterance(item.text);
+      u.rate=0.8;u.pitch=1.05;u.volume=1.0;
+      u.lang='en-US';
+      if(voices.length){
+        var v=voices.find(function(v){return v.name.indexOf('Samantha')>=0;})||voices.find(function(v){return v.lang==='en-GB';})||voices.find(function(v){return v.lang.indexOf('en')===0&&v.localService;});
+        if(v)u.voice=v;
+      }
+      u.onend=function(){onDone();};
+      u.onerror=function(){onDone();};
+      synth.speak(u);
+      // iOS bug: synth pauses after 15s. Keep it alive.
+      var keepAlive=setInterval(function(){if(!S.speaking){clearInterval(keepAlive);return;}synth.pause();synth.resume();},10000);
+      u.onend=function(){clearInterval(keepAlive);onDone();};
+      u.onerror=function(){clearInterval(keepAlive);onDone();};
+    }
   }catch(e){onDone();}
 }
 
