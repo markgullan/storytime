@@ -226,7 +226,6 @@ function applyNames(){
   const n2=document.getElementById('inp-name2').value.trim();
   const key=document.getElementById('inp-elkey').value.replace(/[\s\n\r\t]/g,'');
   if(n1)NAME1=n1;if(n2)NAME2=n2;
-  if(key!==EL_KEY){EL_VOICE='';localStorage.removeItem('st_el_voice');}
   EL_KEY=key;
   saveNames();localStorage.setItem('st_el_key',EL_KEY);
   closeNames();render();
@@ -235,34 +234,29 @@ function testVoice(){
   var key=document.getElementById('inp-elkey').value.replace(/[\s\n\r\t]/g,'');
   var status=document.getElementById('el-status');
   if(!key){status.textContent='⚠️ Paste your API key first.';status.style.color='#FF922B';return;}
-  // Save key immediately so it persists
   EL_KEY=key;localStorage.setItem('st_el_key',EL_KEY);
-  EL_VOICE='';localStorage.removeItem('st_el_voice');
   status.textContent='⏳ Testing...';status.style.color='#845EF7';
-  // Pre-create audio element in user gesture context (required for iOS)
   var testAudio=new Audio();
-  fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':key}})
-    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-    .then(function(data){
-      if(!data||!data.voices||!data.voices.length)throw new Error('No voices found');
-      var v=data.voices[0];
-      status.textContent='✅ Connected! Voice: '+v.name+'. Generating...';status.style.color='#51CF66';
-      return fetch('https://api.elevenlabs.io/v1/text-to-speech/'+v.voice_id,{
-        method:'POST',headers:{'Accept':'audio/mpeg','Content-Type':'application/json','xi-api-key':key},
-        body:JSON.stringify({text:'Once upon a time, in a land far away, there lived two best friends.',model_id:'eleven_monolingual_v1',voice_settings:{stability:0.35,similarity_boost:0.85}})
-      });
+  var voiceId=(VOICE_PREFS[VOICE_TYPE]||VOICE_PREFS.man).id;
+  fetch('https://api.elevenlabs.io/v1/text-to-speech/'+voiceId,{
+    method:'POST',
+    headers:{'Accept':'audio/mpeg','Content-Type':'application/json','xi-api-key':key},
+    body:JSON.stringify({text:'Once upon a time, in a land far away, there lived two best friends.',model_id:'eleven_monolingual_v1',voice_settings:{stability:0.35,similarity_boost:0.85}})
+  })
+    .then(function(r){
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return r.blob();
     })
-    .then(function(r){if(!r||!r.ok)throw new Error('TTS failed: '+r.status);return r.blob();})
     .then(function(blob){
       if(!blob||blob.size<100)throw new Error('Empty audio');
+      status.textContent='✅ Working! Key saved.';status.style.color='#51CF66';
       testAudio.src=URL.createObjectURL(blob);
-      testAudio.play().then(function(){status.textContent='✅ Playing! Key saved.';}).catch(function(e){status.textContent='✅ Key saved! Tap Play on a story to hear it.';});
+      testAudio.play().catch(function(){status.textContent='✅ Key saved! Tap Play on a story to hear it.';});
     })
     .catch(function(e){
       EL_KEY='';localStorage.setItem('st_el_key','');
-      status.textContent='❌ '+e.message+'. Using device voice instead.';status.style.color='#FF922B';
-      // Play device voice so user hears it works
-      var u=new SpeechSynthesisUtterance('Once upon a time, in a land far away, there lived two best friends.');
+      status.textContent='❌ '+e.message+'. Using device voice.';status.style.color='#FF922B';
+      var u=new SpeechSynthesisUtterance('Once upon a time, there lived two best friends.');
       u.rate=0.8;u.pitch=1.05;u.lang='en-US';synth.speak(u);
     });
 }
@@ -282,21 +276,19 @@ const analyzeEmotion=(text)=>{
 };
 
 // ── ElevenLabs TTS with IndexedDB cache ──
-let EL_VOICE=localStorage.getItem('st_el_voice')||'';
 let EL_KEY=localStorage.getItem('st_el_key')||'';
 let VOICE_TYPE=localStorage.getItem('st_voice_type')||'man';
 
 const VOICE_PREFS={
-  man:{keywords:/\b(male|man|deep|adam|daniel|josh|arnold|drew|clyde)\b/i,fallbackId:'pNInz6obpgDQGcFmaJgB'},
-  woman:{keywords:/\b(female|woman|warm|rachel|bella|elli|domi|sarah)\b/i,fallbackId:'21m00Tcm4TlvDq8ikWAM'},
-  kid:{keywords:/\b(kid|child|young|boy|girl|charlie)\b/i,fallbackId:'IKne3meq5aSn9XLyUdCD'},
-  old:{keywords:/\b(old|elder|grandpa|grandma|wise|santa|patriarch)\b/i,fallbackId:'VR6AewLTigWG4xSOukaG'}
+  man:{id:'pNInz6obpgDQGcFmaJgB'},   // Adam
+  woman:{id:'21m00Tcm4TlvDq8ikWAM'},  // Rachel
+  kid:{id:'jBpfuIE2acCO8z3wKNLl'},    // Emily
+  old:{id:'VR6AewLTigWG4xSOukaG'}     // Arnold
 };
 
 function pickVoice(type){
   VOICE_TYPE=type;localStorage.setItem('st_voice_type',type);
-  EL_VOICE='';localStorage.removeItem('st_el_voice');
-  document.querySelectorAll('.vopt').forEach(b=>b.classList.toggle('sel',b.dataset.v===type));
+  document.querySelectorAll('.vopt').forEach(function(b){b.classList.toggle('sel',b.dataset.v===type);});
 }
 
 function openNames(){
@@ -304,7 +296,7 @@ function openNames(){
   document.getElementById('inp-name1').value=NAME1;
   document.getElementById('inp-name2').value=NAME2;
   document.getElementById('inp-elkey').value=EL_KEY;
-  document.querySelectorAll('.vopt').forEach(b=>b.classList.toggle('sel',b.dataset.v===VOICE_TYPE));
+  document.querySelectorAll('.vopt').forEach(function(b){b.classList.toggle('sel',b.dataset.v===VOICE_TYPE);});
 }
 
 // IndexedDB for audio cache
@@ -312,37 +304,21 @@ function openDB(){return new Promise(function(res,rej){try{const r=indexedDB.ope
 function dbGet(key){return openDB().then(function(db){return new Promise(function(res){const tx=db.transaction('clips','readonly');const r=tx.objectStore('clips').get(key);r.onsuccess=function(){res(r.result||null);};r.onerror=function(){res(null);};});}).catch(function(){return null;});}
 function dbPut(key,val){return openDB().then(function(db){return new Promise(function(res){const tx=db.transaction('clips','readwrite');tx.objectStore('clips').put(val,key);tx.oncomplete=function(){res();};tx.onerror=function(){res();};});}).catch(function(){});}
 
-function getVoiceId(){
-  if(EL_VOICE)return Promise.resolve(EL_VOICE);
-  if(!EL_KEY)return Promise.resolve('');
-  const pref=VOICE_PREFS[VOICE_TYPE]||VOICE_PREFS.man;
-  return fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':EL_KEY}})
-    .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
-    .then(function(data){
-      if(!data||!data.voices||!data.voices.length)throw new Error('no voices');
-      const match=data.voices.find(function(v){return pref.keywords.test(v.name+(v.labels?JSON.stringify(v.labels):''));})||data.voices[0];
-      EL_VOICE=match.voice_id;localStorage.setItem('st_el_voice',EL_VOICE);
-      return EL_VOICE;
-    }).catch(function(){EL_VOICE=pref.fallbackId;return EL_VOICE;});
-}
-
 function elevenLabsTTS(text){
   if(!EL_KEY)return Promise.reject(new Error('no key'));
-  return getVoiceId().then(function(voiceId){
-    if(!voiceId)throw new Error('no voice');
-    const cacheKey=voiceId+'_'+text.substring(0,100);
-    return dbGet(cacheKey).then(function(cached){
-      if(cached)return cached;
-      return fetch('https://api.elevenlabs.io/v1/text-to-speech/'+voiceId,{
-        method:'POST',
-        headers:{'Accept':'audio/mpeg','Content-Type':'application/json','xi-api-key':EL_KEY},
-        body:JSON.stringify({text:text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.35,similarity_boost:0.85}})
-      }).then(function(r){
-        if(r.status===401||r.status===403){EL_KEY='';localStorage.setItem('st_el_key','');throw new Error('bad key');}
-        if(!r.ok)throw new Error('http '+r.status);
-        return r.blob();
-      }).then(function(blob){if(blob&&blob.size>0){dbPut(cacheKey,blob);}return blob;});
-    });
+  var voiceId=(VOICE_PREFS[VOICE_TYPE]||VOICE_PREFS.man).id;
+  var cacheKey=voiceId+'_'+text.substring(0,100);
+  return dbGet(cacheKey).then(function(cached){
+    if(cached)return cached;
+    return fetch('https://api.elevenlabs.io/v1/text-to-speech/'+voiceId,{
+      method:'POST',
+      headers:{'Accept':'audio/mpeg','Content-Type':'application/json','xi-api-key':EL_KEY},
+      body:JSON.stringify({text:text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.35,similarity_boost:0.85}})
+    }).then(function(r){
+      if(r.status===401||r.status===403){EL_KEY='';localStorage.setItem('st_el_key','');throw new Error('bad key');}
+      if(!r.ok)throw new Error('http '+r.status);
+      return r.blob();
+    }).then(function(blob){if(blob&&blob.size>0){dbPut(cacheKey,blob);}return blob;});
   });
 }
 
