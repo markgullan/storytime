@@ -117,7 +117,11 @@ body{min-height:100vh;background:radial-gradient(ellipse at 30% 20%,#1a0040 0%,#
     <label style="font-size:13px;font-weight:700;color:#666;display:block;text-align:left;margin-bottom:4px">Character 1 (replaces Matthew):</label>
     <input id="inp-name1" style="width:100%;padding:10px;border-radius:12px;border:2px solid #ddd;font-size:16px;margin-bottom:12px" placeholder="Matthew">
     <label style="font-size:13px;font-weight:700;color:#666;display:block;text-align:left;margin-bottom:4px">Character 2 (replaces Drea):</label>
-    <input id="inp-name2" style="width:100%;padding:10px;border-radius:12px;border:2px solid #ddd;font-size:16px;margin-bottom:16px" placeholder="Drea">
+    <input id="inp-name2" style="width:100%;padding:10px;border-radius:12px;border:2px solid #ddd;font-size:16px;margin-bottom:12px" placeholder="Drea">
+    <hr style="border:none;border-top:1px solid #eee;margin:8px 0 12px">
+    <label style="font-size:13px;font-weight:700;color:#666;display:block;text-align:left;margin-bottom:4px">🎙️ ElevenLabs API Key <span style="font-weight:400;color:#aaa">(free at elevenlabs.io)</span>:</label>
+    <input id="inp-elkey" type="password" style="width:100%;padding:10px;border-radius:12px;border:2px solid #ddd;font-size:14px;margin-bottom:6px" placeholder="Paste key for realistic voice">
+    <p style="font-size:11px;color:#aaa;text-align:left;margin-bottom:16px">Without key: uses basic device voice. With key: lifelike narration (cached offline).</p>
     <div style="display:flex;gap:10px">
       <button onclick="closeNames()" style="flex:1;padding:11px;border-radius:16px;border:2px solid #ddd;background:#fff;font-weight:700;cursor:pointer;font-size:14px">Cancel</button>
       <button onclick="applyNames()" style="flex:1;padding:11px;border-radius:16px;border:none;background:linear-gradient(135deg,#CC5DE8,#845EF7);color:#fff;font-weight:700;cursor:pointer;font-size:14px">Save ✓</button>
@@ -203,55 +207,98 @@ let NAME1=localStorage.getItem('st_name1')||'Matthew';
 let NAME2=localStorage.getItem('st_name2')||'Drea';
 function sub(text){return text.replace(/\bMatthew\b/g,NAME1).replace(/\bDrea\b/g,NAME2);}
 function saveNames(){localStorage.setItem('st_name1',NAME1);localStorage.setItem('st_name2',NAME2);}
-function openNames(){document.getElementById('name-modal').style.display='flex';document.getElementById('inp-name1').value=NAME1;document.getElementById('inp-name2').value=NAME2;}
+function openNames(){document.getElementById('name-modal').style.display='flex';document.getElementById('inp-name1').value=NAME1;document.getElementById('inp-name2').value=NAME2;document.getElementById('inp-elkey').value=EL_KEY;}
 function closeNames(){document.getElementById('name-modal').style.display='none';}
 function applyNames(){
   const n1=document.getElementById('inp-name1').value.trim();
   const n2=document.getElementById('inp-name2').value.trim();
-  if(n1)NAME1=n1;if(n2)NAME2=n2;saveNames();closeNames();render();
+  const key=document.getElementById('inp-elkey').value.trim();
+  if(n1)NAME1=n1;if(n2)NAME2=n2;EL_KEY=key;
+  saveNames();localStorage.setItem('st_el_key',EL_KEY);closeNames();render();
 }
 
 const story=()=>STORIES.find(s=>s.week===S.week&&s.day===S.dayIdx);
 
 const analyzeEmotion=(text)=>{
   const t=text.toLowerCase();
-  if(/\b(roar|roared|growl|fee fi fo|stomp|boom|crash|snap|woof|thunder|bellowed)\b/.test(t))return{rate:.62,pitch:.52,vol:1.0,icon:'😱',label:'Dramatic!'};
-  if(/\b(wolf|danger|trap|hunter|frightened|terrified|crept|hiding|trembl)\b/.test(t))return{rate:.64,pitch:.70,vol:.9,icon:'😰',label:'Suspense...'};
-  if(text.includes('!')&&/\b(ran|run|zoom|dash|jump|hurry|quick|fast|chased|scrambl)\b/.test(t))return{rate:.96,pitch:1.32,vol:1.0,icon:'⚡',label:'Action!'};
-  if(/\b(hooray|hurrah|wonderful|magnificent|delicious|amazing|brilliant|yay|cheered)\b/.test(t)&&text.includes('!'))return{rate:.84,pitch:1.22,vol:1.0,icon:'🎉',label:'Hooray!'};
-  if(text.trim().endsWith('!'))return{rate:.80,pitch:1.12,vol:1.0,icon:'😄',label:'Excited!'};
-  if(/\b(whisper|whispered|gently|quietly|softly|alone|sadly|sorry|tears|cry|cried|poor)\b/.test(t))return{rate:.60,pitch:.80,vol:.80,icon:'💙',label:'Gently...'};
-  if(text.trim().endsWith('?'))return{rate:.70,pitch:1.10,vol:.92,icon:'🤔',label:'Curious?'};
-  if(/\b(said|replied|called|asked|answered|exclaimed)\b/.test(t))return{rate:.76,pitch:1.0,vol:1.0,icon:'💬',label:'Talking'};
-  return{rate:.73,pitch:.95,vol:1.0,icon:'📖',label:'Story Time'};
+  if(/\b(roar|roared|growl|fee fi fo|stomp|boom|crash|snap|woof|thunder|bellowed)\b/.test(t))return{icon:'😱',label:'Dramatic!'};
+  if(/\b(wolf|danger|trap|hunter|frightened|terrified|crept|hiding|trembl)\b/.test(t))return{icon:'😰',label:'Suspense...'};
+  if(text.includes('!')&&/\b(ran|run|zoom|dash|jump|hurry|quick|fast|chased|scrambl)\b/.test(t))return{icon:'⚡',label:'Action!'};
+  if(/\b(hooray|hurrah|wonderful|magnificent|delicious|amazing|brilliant|yay|cheered)\b/.test(t)&&text.includes('!'))return{icon:'🎉',label:'Hooray!'};
+  if(text.trim().endsWith('!'))return{icon:'😄',label:'Excited!'};
+  if(/\b(whisper|whispered|gently|quietly|softly|alone|sadly|sorry|tears|cry|cried|poor)\b/.test(t))return{icon:'💙',label:'Gently...'};
+  if(text.trim().endsWith('?'))return{icon:'🤔',label:'Curious?'};
+  return{icon:'📖',label:'Story Time'};
 };
 
-const splitSentences=(text)=>{const m=text.match(/[^.!?]+[.!?]+(?:\s|$)/g);return m?m.map(s=>s.trim()).filter(Boolean):[text];};
+// ── ElevenLabs TTS with IndexedDB cache ──
+const EL_VOICE='21m00Tcm4TlvDq8ikWAM'; // "Rachel" - warm, expressive storytelling voice
+let EL_KEY=localStorage.getItem('st_el_key')||'';
 
-const getMaleVoice=()=>{
-  const vv=synth.getVoices();
-  return vv.find(v=>v.name==='Google UK English Male')||vv.find(v=>v.name.includes('Daniel')&&v.lang.startsWith('en'))||vv.find(v=>v.name==='Alex')||vv.find(v=>v.name.includes('David')&&v.lang.startsWith('en'))||vv.find(v=>v.name.includes('Mark')&&v.lang.startsWith('en'))||vv.find(v=>v.lang==='en-GB')||vv.find(v=>v.lang.startsWith('en'));
-};
+// IndexedDB for audio cache
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('storytime-audio',1);r.onupgradeneeded=e=>{e.target.result.createObjectStore('clips');};r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e);});}
+function dbGet(key){return openDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction('clips','readonly');const r=tx.objectStore('clips').get(key);r.onsuccess=()=>res(r.result);r.onerror=rej;}));}
+function dbPut(key,val){return openDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction('clips','readwrite');tx.objectStore('clips').put(val,key);tx.oncomplete=()=>res();tx.onerror=rej;}));}
+
+function elevenLabsTTS(text){
+  const cacheKey=EL_VOICE+'_'+text.substring(0,100);
+  return dbGet(cacheKey).then(cached=>{
+    if(cached)return cached;
+    return fetch('https://api.elevenlabs.io/v1/text-to-speech/'+EL_VOICE+'/stream',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','xi-api-key':EL_KEY},
+      body:JSON.stringify({text:text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.4,similarity_boost:0.8,style:0.7,use_speaker_boost:true}})
+    }).then(r=>{if(!r.ok)throw new Error(r.status);return r.blob();})
+    .then(blob=>{dbPut(cacheKey,blob);return blob;});
+  });
+}
+
+let currentAudio=null;
 
 function speakFrom(startIdx){
-  const st=story();if(!st)return;synth.cancel();shouldStop=false;
-  const queue=[];
-  for(let pi=startIdx;pi<st.paras.length;pi++){const sentences=splitSentences(st.paras[pi]);for(const s of sentences){if(s.trim().length>1)queue.push({text:s.trim(),paraIdx:pi,emo:analyzeEmotion(s)});}}
-  if(!queue.length)return;S.speaking=true;updatePlayBtn();
+  const st=story();if(!st)return;stopSpeaking();shouldStop=false;
+  const paras=st.paras.slice(startIdx).map((p,i)=>({text:sub(p),paraIdx:startIdx+i,emo:analyzeEmotion(p)}));
+  if(!paras.length)return;S.speaking=true;updatePlayBtn();
   let idx=0;
+
   const playNext=()=>{
-    if(shouldStop||idx>=queue.length){if(!shouldStop){S.speaking=false;S.storyDone=true;updatePlayBtn();showQuizTrigger();}updateEmojiBadge(null);return;}
-    const item=queue[idx];const u=new SpeechSynthesisUtterance(sub(item.text));
-    u.rate=item.emo.rate;u.pitch=item.emo.pitch;u.volume=item.emo.vol;
-    const v=getMaleVoice();if(v)u.voice=v;
-    u.onstart=()=>{S.curPara=item.paraIdx;S.fromPara=item.paraIdx;S.curEmo=item.emo;updateParaHighlight(item.paraIdx);updateEmojiBadge(item.emo);};
-    u.onend=()=>{idx++;setTimeout(playNext,item.text.endsWith('!')||item.text.endsWith('?')?160:90);};
-    u.onerror=(e)=>{if(e.error!=='interrupted'){idx++;setTimeout(playNext,100);}};
-    synth.speak(u);
+    if(shouldStop||idx>=paras.length){if(!shouldStop){S.speaking=false;S.storyDone=true;updatePlayBtn();showQuizTrigger();}updateEmojiBadge(null);return;}
+    const item=paras[idx];
+    S.curPara=item.paraIdx;S.fromPara=item.paraIdx;S.curEmo=item.emo;
+    updateParaHighlight(item.paraIdx);updateEmojiBadge(item.emo);
+
+    if(EL_KEY){
+      elevenLabsTTS(item.text).then(blob=>{
+        if(shouldStop)return;
+        const url=URL.createObjectURL(blob);
+        currentAudio=new Audio(url);
+        currentAudio.playbackRate=0.9;
+        currentAudio.onended=()=>{URL.revokeObjectURL(url);idx++;setTimeout(playNext,200);};
+        currentAudio.onerror=()=>{idx++;setTimeout(playNext,100);};
+        currentAudio.play();
+      }).catch(()=>{fallbackSpeak(item,()=>{idx++;setTimeout(playNext,150);});});
+    } else {
+      fallbackSpeak(item,()=>{idx++;setTimeout(playNext,150);});
+    }
   };
   playNext();
 }
-function stopSpeaking(){shouldStop=true;synth.cancel();S.speaking=false;updatePlayBtn();updateEmojiBadge(null);}
+
+function fallbackSpeak(item,onDone){
+  const u=new SpeechSynthesisUtterance(item.text);
+  u.rate=0.75;u.pitch=1.0;u.volume=1.0;
+  const vv=synth.getVoices();
+  const v=vv.find(v=>v.name==='Google UK English Male')||vv.find(v=>v.name.includes('Daniel')&&v.lang.startsWith('en'))||vv.find(v=>v.lang==='en-GB')||vv.find(v=>v.lang.startsWith('en'));
+  if(v)u.voice=v;
+  u.onend=onDone;u.onerror=()=>onDone();
+  synth.speak(u);
+}
+
+function stopSpeaking(){
+  shouldStop=true;
+  if(currentAudio){currentAudio.pause();currentAudio=null;}
+  synth.cancel();S.speaking=false;updatePlayBtn();updateEmojiBadge(null);
+}
 
 function updateParaHighlight(idx){
   document.querySelectorAll('.para').forEach((el,i)=>el.classList.toggle('hi',i===idx));
@@ -302,7 +349,8 @@ function renderDayRow(){
 function renderCover(){
   const st=story();if(!st)return'<div class="cover"><div class="c-emoji">📚</div><div class="c-title">Coming Soon!</div><div class="c-sub">This story is not ready yet</div></div>';
   const todayDay=getDayIdx(),todayWeek=getWeek();const isToday=S.dayIdx===todayDay&&S.week===todayWeek;
-  return`<div class="cover"><div class="c-emoji">${st.emoji}</div><div class="c-title" style="color:${st.dark}">${sub(st.title)}</div><div class="c-sub">${sub(st.sub)}</div><div class="moral-box" style="background:${st.color}15;border-color:${st.color}88"><span>💡</span><p style="color:${st.dark}">${sub(st.moral)}</p></div><div class="day-badge" style="background:${DAY_COLORS[S.dayIdx%7]}22;border-color:${DAY_COLORS[S.dayIdx%7]}55;color:${DAY_COLORS[S.dayIdx%7]}">📅 ${DAY_NAMES[S.dayIdx%7]} · Week ${S.week}${isToday?' · Today! 🌟':''}</div><button class="read-btn" style="background:${st.color};box-shadow:0 6px 24px ${st.color}66" onclick="gotoStory()">🎙️ Read to Me!</button></div>`;
+  const tip=!localStorage.getItem('st_tip_dismissed')?`<div style="margin-top:14px;padding:10px 14px;border-radius:14px;background:rgba(0,0,0,.04);border:1.5px solid rgba(0,0,0,.08);text-align:left;position:relative"><button onclick="localStorage.setItem('st_tip_dismissed','1');render()" style="position:absolute;top:6px;right:10px;background:none;border:none;font-size:14px;cursor:pointer;color:#aaa">✕</button><p style="font-size:11px;color:#888;line-height:1.5;margin:0"><b>📱 iPhone Tip:</b> Tap <b>Share</b> (□↑) → <b>Add to Home Screen</b> to install as an app. Works offline!</p></div>`:'';
+  return`<div class="cover"><div class="c-emoji">${st.emoji}</div><div class="c-title" style="color:${st.dark}">${sub(st.title)}</div><div class="c-sub">${sub(st.sub)}</div><div class="moral-box" style="background:${st.color}15;border-color:${st.color}88"><span>💡</span><p style="color:${st.dark}">${sub(st.moral)}</p></div><div class="day-badge" style="background:${DAY_COLORS[S.dayIdx%7]}22;border-color:${DAY_COLORS[S.dayIdx%7]}55;color:${DAY_COLORS[S.dayIdx%7]}">📅 ${DAY_NAMES[S.dayIdx%7]} · Week ${S.week}${isToday?' · Today! 🌟':''}</div><button class="read-btn" style="background:${st.color};box-shadow:0 6px 24px ${st.color}66" onclick="gotoStory()">🎙️ Read to Me!</button>${tip}</div>`;
 }
 
 function renderStory(){
@@ -332,7 +380,7 @@ function gotoCover(){stopSpeaking();S.phase='cover';render();}
 function gotoStory(){S.phase='story';render();}
 function gotoQuiz(){stopSpeaking();S.phase='quiz';S.quizIdx=0;S.chosen=null;S.score=0;render();}
 function handlePlay(){if(S.speaking){stopSpeaking();}else{if(S.storyDone){S.storyDone=false;S.curPara=0;S.fromPara=0;}speakFrom(S.fromPara);}}
-function handleRestart(){shouldStop=true;synth.cancel();S.speaking=false;S.curPara=0;S.fromPara=0;S.storyDone=false;setTimeout(()=>speakFrom(0),120);}
+function handleRestart(){stopSpeaking();S.curPara=0;S.fromPara=0;S.storyDone=false;setTimeout(()=>speakFrom(0),120);}
 function handleAnswer(optIdx){if(S.chosen!==null)return;const st=story();S.chosen=optIdx;if(optIdx===st.questions[S.quizIdx].ans)S.score++;render();setTimeout(()=>{if(S.quizIdx<2){S.quizIdx++;S.chosen=null;render();}else{showConfetti();S.phase='complete';render();}},1600);}
 if(synth.onvoiceschanged!==undefined){synth.onvoiceschanged=()=>{};}
 
