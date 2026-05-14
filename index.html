@@ -217,13 +217,9 @@ function applyNames(){
   const n2=document.getElementById('inp-name2').value.trim();
   const key=document.getElementById('inp-elkey').value.trim();
   if(n1)NAME1=n1;if(n2)NAME2=n2;
-  saveNames();
-  if(!key){EL_KEY='';localStorage.setItem('st_el_key','');closeNames();render();return;}
-  // Validate key with a tiny test request
-  fetch('https://api.elevenlabs.io/v1/user',{headers:{'xi-api-key':key}})
-    .then(r=>{if(!r.ok)throw new Error();return r.json();})
-    .then(()=>{EL_KEY=key;localStorage.setItem('st_el_key',EL_KEY);closeNames();render();})
-    .catch(()=>{document.getElementById('inp-elkey').value='';document.getElementById('inp-elkey').style.borderColor='#FF5757';alert('Invalid API key. Leave blank to use device voice.');});
+  EL_KEY=key;
+  saveNames();localStorage.setItem('st_el_key',EL_KEY);
+  closeNames();render();
 }
 
 const story=()=>STORIES.find(s=>s.week===S.week&&s.day===S.dayIdx);
@@ -257,8 +253,10 @@ function elevenLabsTTS(text){
       method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':EL_KEY},
       body:JSON.stringify({text:text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.4,similarity_boost:0.8,style:0.7,use_speaker_boost:true}})
-    }).then(r=>{if(!r.ok)throw new Error(r.status);return r.blob();})
-    .then(blob=>{dbPut(cacheKey,blob);return blob;});
+    }).then(r=>{
+      if(!r.ok){EL_KEY='';localStorage.setItem('st_el_key','');throw new Error('invalid');}
+      return r.blob();
+    }).then(blob=>{dbPut(cacheKey,blob);return blob;});
   });
 }
 
