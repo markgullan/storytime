@@ -99,6 +99,8 @@ body{min-height:100vh;background:radial-gradient(ellipse at 30% 20%,#1a0040 0%,#
 .moral-card-txt{font-family:'Bubblegum Sans',cursive;font-size:15px;line-height:1.4}
 #again-btn{width:100%;padding:13px;color:#fff;border:none;border-radius:22px;font-family:'Bubblegum Sans',cursive;font-size:17px;cursor:pointer;background:var(--sg)}
 #again-btn:active{transform:scale(.97)}
+.vopt{flex:1;padding:7px 4px;border-radius:10px;border:2px solid #ddd;background:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}
+.vopt.sel{border-color:#845EF7;background:#845EF722;color:#845EF7}
 </style>
 </head>
 <body>
@@ -121,8 +123,16 @@ body{min-height:100vh;background:radial-gradient(ellipse at 30% 20%,#1a0040 0%,#
     <input id="inp-name2" style="width:100%;padding:10px;border-radius:12px;border:2px solid #ddd;font-size:16px;margin-bottom:12px" placeholder="Drea">
     <hr style="border:none;border-top:1px solid #eee;margin:8px 0 12px">
     <label style="font-size:13px;font-weight:700;color:#666;display:block;text-align:left;margin-bottom:4px">🎙️ ElevenLabs API Key <span style="font-weight:400;color:#aaa">(free at elevenlabs.io)</span>:</label>
-    <input id="inp-elkey" type="password" style="width:100%;padding:10px;border-radius:12px;border:2px solid #ddd;font-size:14px;margin-bottom:6px" placeholder="Paste key for realistic voice">
-    <p style="font-size:11px;color:#aaa;text-align:left;margin-bottom:16px">Without key: uses basic device voice. With key: lifelike narration (cached offline).</p>
+    <input id="inp-elkey" type="text" style="width:100%;padding:10px;border-radius:12px;border:2px solid #ddd;font-size:14px;margin-bottom:6px" placeholder="Paste key for realistic voice" autocomplete="off" autocorrect="off" spellcheck="false">
+    <label style="font-size:13px;font-weight:700;color:#666;display:block;text-align:left;margin-bottom:4px">Voice type:</label>
+    <div id="voice-opts" style="display:flex;gap:6px;margin-bottom:8px">
+      <button class="vopt" data-v="man" onclick="pickVoice('man')">🧔 Man</button>
+      <button class="vopt" data-v="woman" onclick="pickVoice('woman')">👩 Woman</button>
+      <button class="vopt" data-v="kid" onclick="pickVoice('kid')">👦 Kid</button>
+      <button class="vopt" data-v="old" onclick="pickVoice('old')">👴 Old</button>
+    </div>
+    <button onclick="testVoice()" style="width:100%;padding:8px;border-radius:10px;border:1.5px solid #845EF7;background:#f4f0ff;color:#845EF7;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:6px">🔊 Test Voice</button>
+    <p id="el-status" style="font-size:11px;color:#aaa;text-align:left;margin-bottom:16px">Without key: device voice. With key: lifelike narration.</p>
     <div style="display:flex;gap:10px">
       <button onclick="closeNames()" style="flex:1;padding:11px;border-radius:16px;border:2px solid #ddd;background:#fff;font-weight:700;cursor:pointer;font-size:14px">Cancel</button>
       <button onclick="applyNames()" style="flex:1;padding:11px;border-radius:16px;border:none;background:linear-gradient(135deg,#CC5DE8,#845EF7);color:#fff;font-weight:700;cursor:pointer;font-size:14px">Save ✓</button>
@@ -210,16 +220,37 @@ let NAME1=localStorage.getItem('st_name1')||'Matthew';
 let NAME2=localStorage.getItem('st_name2')||'Drea';
 function sub(text){return text.replace(/\bMatthew\b/g,NAME1).replace(/\bDrea\b/g,NAME2);}
 function saveNames(){localStorage.setItem('st_name1',NAME1);localStorage.setItem('st_name2',NAME2);}
-function openNames(){document.getElementById('name-modal').style.display='flex';document.getElementById('inp-name1').value=NAME1;document.getElementById('inp-name2').value=NAME2;document.getElementById('inp-elkey').value=EL_KEY;}
 function closeNames(){document.getElementById('name-modal').style.display='none';}
 function applyNames(){
   const n1=document.getElementById('inp-name1').value.trim();
   const n2=document.getElementById('inp-name2').value.trim();
-  const key=document.getElementById('inp-elkey').value.trim();
+  const key=document.getElementById('inp-elkey').value.replace(/[\s\n\r\t]/g,'');
   if(n1)NAME1=n1;if(n2)NAME2=n2;
+  if(key!==EL_KEY){EL_VOICE='';localStorage.removeItem('st_el_voice');}
   EL_KEY=key;
   saveNames();localStorage.setItem('st_el_key',EL_KEY);
   closeNames();render();
+}
+function testVoice(){
+  const key=document.getElementById('inp-elkey').value.replace(/[\s\n\r\t]/g,'');
+  const status=document.getElementById('el-status');
+  if(!key){status.textContent='⚠️ Paste your API key first.';status.style.color='#FF922B';return;}
+  status.textContent='⏳ Testing...';status.style.color='#845EF7';
+  fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':key}})
+    .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(data=>{
+      if(!data.voices||!data.voices.length)throw new Error('no voices');
+      const v=data.voices[0];
+      status.textContent='✅ Connected! Voice: '+v.name;status.style.color='#51CF66';
+      // Play a short test
+      return fetch('https://api.elevenlabs.io/v1/text-to-speech/'+v.voice_id,{
+        method:'POST',headers:{'Accept':'audio/mpeg','Content-Type':'application/json','xi-api-key':key},
+        body:JSON.stringify({text:'Once upon a time, in a land far away.',model_id:'eleven_monolingual_v1',voice_settings:{stability:0.35,similarity_boost:0.85}})
+      });
+    })
+    .then(r=>{if(!r||!r.ok)return;return r.blob();})
+    .then(blob=>{if(blob&&blob.size>0){const a=new Audio(URL.createObjectURL(blob));a.play();}})
+    .catch(e=>{status.textContent='❌ Failed: '+e.message+'. Check your key.';status.style.color='#FF5757';});
 }
 
 const story=()=>STORIES.find(s=>s.week===S.week&&s.day===S.dayIdx);
@@ -237,74 +268,121 @@ const analyzeEmotion=(text)=>{
 };
 
 // ── ElevenLabs TTS with IndexedDB cache ──
-const EL_VOICE='21m00Tcm4TlvDq8ikWAM'; // "Rachel" - warm, expressive storytelling voice
+let EL_VOICE=localStorage.getItem('st_el_voice')||'';
 let EL_KEY=localStorage.getItem('st_el_key')||'';
+let VOICE_TYPE=localStorage.getItem('st_voice_type')||'man';
+
+const VOICE_PREFS={
+  man:{keywords:/\b(male|man|deep|adam|daniel|josh|arnold|drew|clyde)\b/i,fallbackId:'pNInz6obpgDQGcFmaJgB'},
+  woman:{keywords:/\b(female|woman|warm|rachel|bella|elli|domi|sarah)\b/i,fallbackId:'21m00Tcm4TlvDq8ikWAM'},
+  kid:{keywords:/\b(kid|child|young|boy|girl|charlie)\b/i,fallbackId:'IKne3meq5aSn9XLyUdCD'},
+  old:{keywords:/\b(old|elder|grandpa|grandma|wise|santa|patriarch)\b/i,fallbackId:'VR6AewLTigWG4xSOukaG'}
+};
+
+function pickVoice(type){
+  VOICE_TYPE=type;localStorage.setItem('st_voice_type',type);
+  EL_VOICE='';localStorage.removeItem('st_el_voice');
+  document.querySelectorAll('.vopt').forEach(b=>b.classList.toggle('sel',b.dataset.v===type));
+}
+
+function openNames(){
+  document.getElementById('name-modal').style.display='flex';
+  document.getElementById('inp-name1').value=NAME1;
+  document.getElementById('inp-name2').value=NAME2;
+  document.getElementById('inp-elkey').value=EL_KEY;
+  document.querySelectorAll('.vopt').forEach(b=>b.classList.toggle('sel',b.dataset.v===VOICE_TYPE));
+}
 
 // IndexedDB for audio cache
-function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('storytime-audio',1);r.onupgradeneeded=e=>{e.target.result.createObjectStore('clips');};r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e);});}
-function dbGet(key){return openDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction('clips','readonly');const r=tx.objectStore('clips').get(key);r.onsuccess=()=>res(r.result);r.onerror=rej;}));}
-function dbPut(key,val){return openDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction('clips','readwrite');tx.objectStore('clips').put(val,key);tx.oncomplete=()=>res();tx.onerror=rej;}));}
+function openDB(){return new Promise(function(res,rej){try{const r=indexedDB.open('storytime-audio',1);r.onupgradeneeded=function(e){e.target.result.createObjectStore('clips');};r.onsuccess=function(e){res(e.target.result);};r.onerror=function(e){rej(e);};}catch(e){rej(e);}});}
+function dbGet(key){return openDB().then(function(db){return new Promise(function(res){const tx=db.transaction('clips','readonly');const r=tx.objectStore('clips').get(key);r.onsuccess=function(){res(r.result||null);};r.onerror=function(){res(null);};});}).catch(function(){return null;});}
+function dbPut(key,val){return openDB().then(function(db){return new Promise(function(res){const tx=db.transaction('clips','readwrite');tx.objectStore('clips').put(val,key);tx.oncomplete=function(){res();};tx.onerror=function(){res();};});}).catch(function(){});}
+
+function getVoiceId(){
+  if(EL_VOICE)return Promise.resolve(EL_VOICE);
+  if(!EL_KEY)return Promise.resolve('');
+  const pref=VOICE_PREFS[VOICE_TYPE]||VOICE_PREFS.man;
+  return fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':EL_KEY}})
+    .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(function(data){
+      if(!data||!data.voices||!data.voices.length)throw new Error('no voices');
+      const match=data.voices.find(function(v){return pref.keywords.test(v.name+(v.labels?JSON.stringify(v.labels):''));})||data.voices[0];
+      EL_VOICE=match.voice_id;localStorage.setItem('st_el_voice',EL_VOICE);
+      return EL_VOICE;
+    }).catch(function(){EL_VOICE=pref.fallbackId;return EL_VOICE;});
+}
 
 function elevenLabsTTS(text){
-  const cacheKey=EL_VOICE+'_'+text.substring(0,100);
-  return dbGet(cacheKey).then(cached=>{
-    if(cached)return cached;
-    return fetch('https://api.elevenlabs.io/v1/text-to-speech/'+EL_VOICE+'/stream',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','xi-api-key':EL_KEY},
-      body:JSON.stringify({text:text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.4,similarity_boost:0.8,style:0.7,use_speaker_boost:true}})
-    }).then(r=>{
-      if(!r.ok){EL_KEY='';localStorage.setItem('st_el_key','');throw new Error('invalid');}
-      return r.blob();
-    }).then(blob=>{dbPut(cacheKey,blob);return blob;});
+  if(!EL_KEY)return Promise.reject(new Error('no key'));
+  return getVoiceId().then(function(voiceId){
+    if(!voiceId)throw new Error('no voice');
+    const cacheKey=voiceId+'_'+text.substring(0,100);
+    return dbGet(cacheKey).then(function(cached){
+      if(cached)return cached;
+      return fetch('https://api.elevenlabs.io/v1/text-to-speech/'+voiceId,{
+        method:'POST',
+        headers:{'Accept':'audio/mpeg','Content-Type':'application/json','xi-api-key':EL_KEY},
+        body:JSON.stringify({text:text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.35,similarity_boost:0.85}})
+      }).then(function(r){
+        if(r.status===401||r.status===403){EL_KEY='';localStorage.setItem('st_el_key','');throw new Error('bad key');}
+        if(!r.ok)throw new Error('http '+r.status);
+        return r.blob();
+      }).then(function(blob){if(blob&&blob.size>0){dbPut(cacheKey,blob);}return blob;});
+    });
   });
 }
 
 let currentAudio=null;
 
 function speakFrom(startIdx){
-  const st=story();if(!st)return;stopSpeaking();shouldStop=false;
-  const paras=st.paras.slice(startIdx).map((p,i)=>({text:sub(p),paraIdx:startIdx+i,emo:analyzeEmotion(p)}));
-  if(!paras.length)return;S.speaking=true;updatePlayBtn();
-  let idx=0;
+  try{
+    const st=story();if(!st)return;stopSpeaking();shouldStop=false;
+    const paras=st.paras.slice(startIdx).map(function(p,i){return{text:sub(p),paraIdx:startIdx+i,emo:analyzeEmotion(p)};});
+    if(!paras.length)return;S.speaking=true;updatePlayBtn();
+    let idx=0;
 
-  const playNext=()=>{
-    if(shouldStop||idx>=paras.length){if(!shouldStop){S.speaking=false;S.storyDone=true;updatePlayBtn();showQuizTrigger();}updateEmojiBadge(null);return;}
-    const item=paras[idx];
-    S.curPara=item.paraIdx;S.fromPara=item.paraIdx;S.curEmo=item.emo;
-    updateParaHighlight(item.paraIdx);updateEmojiBadge(item.emo);
+    var playNext=function(){
+      if(shouldStop||idx>=paras.length){if(!shouldStop){S.speaking=false;S.storyDone=true;updatePlayBtn();showQuizTrigger();}updateEmojiBadge(null);return;}
+      var item=paras[idx];
+      S.curPara=item.paraIdx;S.fromPara=item.paraIdx;S.curEmo=item.emo;
+      updateParaHighlight(item.paraIdx);updateEmojiBadge(item.emo);
 
-    if(EL_KEY){
-      elevenLabsTTS(item.text).then(blob=>{
-        if(shouldStop)return;
-        const url=URL.createObjectURL(blob);
-        currentAudio=new Audio(url);
-        currentAudio.playbackRate=0.9;
-        currentAudio.onended=()=>{URL.revokeObjectURL(url);idx++;setTimeout(playNext,200);};
-        currentAudio.onerror=()=>{idx++;setTimeout(playNext,100);};
-        currentAudio.play();
-      }).catch(()=>{fallbackSpeak(item,()=>{idx++;setTimeout(playNext,150);});});
-    } else {
-      fallbackSpeak(item,()=>{idx++;setTimeout(playNext,150);});
-    }
-  };
-  playNext();
+      if(EL_KEY){
+        elevenLabsTTS(item.text).then(function(blob){
+          if(shouldStop)return;
+          if(!blob||blob.size===0){fallbackSpeak(item,function(){idx++;setTimeout(playNext,150);});return;}
+          var url=URL.createObjectURL(blob);
+          currentAudio=new Audio(url);
+          currentAudio.playbackRate=0.9;
+          currentAudio.onended=function(){URL.revokeObjectURL(url);currentAudio=null;idx++;setTimeout(playNext,200);};
+          currentAudio.onerror=function(){URL.revokeObjectURL(url);currentAudio=null;fallbackSpeak(item,function(){idx++;setTimeout(playNext,150);});};
+          currentAudio.play().catch(function(){fallbackSpeak(item,function(){idx++;setTimeout(playNext,150);});});
+        }).catch(function(){fallbackSpeak(item,function(){idx++;setTimeout(playNext,150);});});
+      } else {
+        fallbackSpeak(item,function(){idx++;setTimeout(playNext,150);});
+      }
+    };
+    playNext();
+  }catch(e){S.speaking=false;updatePlayBtn();}
 }
 
 function fallbackSpeak(item,onDone){
-  const u=new SpeechSynthesisUtterance(item.text);
-  u.rate=0.75;u.pitch=1.0;u.volume=1.0;
-  const vv=synth.getVoices();
-  const v=vv.find(v=>v.name==='Google UK English Male')||vv.find(v=>v.name.includes('Daniel')&&v.lang.startsWith('en'))||vv.find(v=>v.lang==='en-GB')||vv.find(v=>v.lang.startsWith('en'));
-  if(v)u.voice=v;
-  u.onend=onDone;u.onerror=()=>onDone();
-  synth.speak(u);
+  try{
+    var u=new SpeechSynthesisUtterance(item.text);
+    u.rate=0.75;u.pitch=1.0;u.volume=1.0;
+    var vv=synth.getVoices()||[];
+    var v=vv.find(function(v){return v.name==='Google UK English Male';})||vv.find(function(v){return v.name.indexOf('Daniel')>=0&&v.lang.indexOf('en')===0;})||vv.find(function(v){return v.lang==='en-GB';})||vv.find(function(v){return v.lang.indexOf('en')===0;});
+    if(v)u.voice=v;
+    u.onend=onDone;u.onerror=function(){onDone();};
+    synth.speak(u);
+  }catch(e){onDone();}
 }
 
 function stopSpeaking(){
   shouldStop=true;
-  if(currentAudio){currentAudio.pause();currentAudio=null;}
-  synth.cancel();S.speaking=false;updatePlayBtn();updateEmojiBadge(null);
+  try{if(currentAudio){currentAudio.pause();currentAudio.src='';currentAudio=null;}}catch(e){}
+  try{synth.cancel();}catch(e){}
+  S.speaking=false;updatePlayBtn();updateEmojiBadge(null);
 }
 
 function updateParaHighlight(idx){
