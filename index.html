@@ -232,12 +232,19 @@ function applyNames(){
 }
 function testVoice(){
   var raw=document.getElementById('inp-elkey').value;
-  var key=raw.replace(/[^a-zA-Z0-9_]/g,'');
+  // Extract just the sk_ key - strip everything else
+  var match=raw.match(/sk_[a-f0-9]{32}/i);
+  var key=match?match[0]:'';
   var status=document.getElementById('el-status');
-  if(!key){status.textContent='⚠️ Paste your API key first.';status.style.color='#FF922B';return;}
-  if(key.length!==raw.trim().length){status.textContent='⚠️ Removed '+( raw.trim().length-key.length)+' invalid chars from key.';status.style.color='#FF922B';}
+  if(!key){
+    // Maybe old format (no sk_ prefix, just 32 hex)
+    var match2=raw.replace(/[^a-f0-9]/gi,'');
+    if(match2.length===32){key=match2;}
+    else{status.textContent='⚠️ Invalid key format. Should be sk_ + 32 characters (35 total). Got '+raw.replace(/\s/g,'').length+' chars.';status.style.color='#FF5757';return;}
+  }
+  document.getElementById('inp-elkey').value=key;
   EL_KEY=key;localStorage.setItem('st_el_key',EL_KEY);
-  status.textContent='⏳ Testing key ('+key.substring(0,6)+'..., '+key.length+' chars)...';status.style.color='#845EF7';
+  status.textContent='⏳ Testing ('+key.substring(0,6)+'..., '+key.length+' chars)...';status.style.color='#845EF7';
   var testAudio=new Audio();
   var voiceId=(VOICE_PREFS[VOICE_TYPE]||VOICE_PREFS.man).id;
   fetch('https://api.elevenlabs.io/v1/text-to-speech/'+voiceId,{
@@ -257,7 +264,7 @@ function testVoice(){
     })
     .catch(function(e){
       EL_KEY='';localStorage.setItem('st_el_key','');
-      status.textContent='❌ '+e.message+' (key: '+key.substring(0,6)+'..., '+key.length+' chars). Device voice active.';status.style.color='#FF922B';
+      status.textContent='❌ '+e.message+'. Device voice active.';status.style.color='#FF922B';
       var u=new SpeechSynthesisUtterance('Hello! I am your storyteller.');
       u.rate=0.8;u.lang='en-US';synth.speak(u);
     });
